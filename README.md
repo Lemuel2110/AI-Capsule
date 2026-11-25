@@ -1,67 +1,206 @@
 # AI Capsule
-A private React + Express prompt library with GitHub OAuth, application JWT and SQLite.
 
-## Local setup (Node.js 24)
+**Developer: Lemuel Amadeus Tanaja**
 
-```sh
+AI Capsule is a full-stack web application that allows users to save, organise, review and improve their AI prompts in a private workspace. It uses React, Node.js, Express, SQLite, GitHub OAuth and JWT authentication.
+
+## Technologies
+
+- Frontend: React and CSS
+- Backend: Node.js and Express
+- Database: SQLite
+- Authentication: GitHub OAuth and JWT
+- Version control: Git and GitHub
+- Cloud platform: Render (deployment attempted)
+
+## Local Installation
+
+Requirements: Node.js 24 and npm.
+
+Run the following commands:
+
+```
 npm install
 cp .env.example .env
 npm run build
 npm start
 ```
-Open http://localhost:3000. Before logging in, configure the environment variables below. The Secure cookie is intended for HTTPS; modern browsers generally permit Secure cookies on localhost. If login fails locally due to cookie handling, verify on the HTTPS deployment. After editing frontend code, rerun `npm run build`.
 
-## GitHub OAuth setup
-In GitHub Settings > Developer settings > OAuth Apps, register a new OAuth app. For local testing set Homepage URL to `http://localhost:3000` and Authorization callback URL to `http://localhost:3000/auth/github/callback`. Copy the client ID and generate a client secret; put them in `.env`. Generate a JWT signing secret with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"` and put it in `.env` as JWT_SECRET. Never share these values. Use a separate OAuth app for the deployed URL.
+Open http://localhost:3000 in a web browser.
 
-Environment names: `PORT`, `APP_URL`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `JWT_SECRET`, `DB_PATH` (optional). Express uses the supplied OAuth callback URL, exchanges the authorization code server-side, reads the GitHub user ID, and issues its own signed JWT. The JWT is stored in a cookie named `token` with Secure, HttpOnly and SameSite=Lax attributes. It expires after two hours. OAuth state protects the callback; mutation routes also check the request origin. Authentication middleware verifies JWT signature, issuer, audience and expiry. The OAuth access token is not returned to the browser.
+Configure the required environment variables before attempting GitHub login. Rebuild the frontend after making changes to React components.
 
-## Render deployment
-Public URL: **[replace with actual deployed HTTPS URL]**.
-Platform: Render web service (planned; verify current free-tier eligibility).
-1. Create a GitHub repository and upload this project, excluding `.env`, database files, `node_modules` and `dist` (see `.gitignore`).
-2. Create a Render Web Service connected to the repository, Node runtime. Build command: `npm install && npm run build`. Start command: `npm start`. Select Node 24 (package.json engines specifies 24.x).
-3. Obtain the assigned HTTPS URL. Create a production GitHub OAuth app with that URL as Homepage URL and `<public URL>/auth/github/callback` as callback.
-4. Set `APP_URL` to the assigned HTTPS origin, and set `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `JWT_SECRET` in Render environment settings. Render supplies PORT. Do not expose secret values. Redeploy after updating variables.
-5. Open the public URL and test login and all CRUD functions. Keep service available until marking completes.
+## Environment Variables
 
-## Routes
-| Method | Path | Access |
+The application uses the following environment variables:
+
+| Variable | Purpose |
+|---|---|
+| PORT | Server port |
+| APP_URL | Application base URL |
+| GITHUB_CLIENT_ID | GitHub OAuth client identifier |
+| GITHUB_CLIENT_SECRET | GitHub OAuth client secret |
+| JWT_SECRET | Secret used to sign and verify JWTs |
+| DB_PATH | SQLite database location |
+
+Secret values are stored in the local `.env` file or cloud environment settings and are excluded from the GitHub repository.
+
+## Authentication and Security
+
+Users authenticate through GitHub OAuth. After successful authentication, the Express backend obtains the GitHub user identifier and generates an application JWT.
+
+The JWT is stored in a cookie named `token` with Secure, HttpOnly and SameSite=Lax attributes.
+
+Protected API routes verify the JWT before allowing access to capsule records. The authenticated user identifier determines record ownership rather than accepting a user ID supplied by the frontend.
+
+## API Routes
+
+| Method | Route | Access |
 |---|---|---|
-| GET | / | Public landing |
-| GET | /login | Public login |
-| GET | /dashboard | Protected dashboard |
-| GET | /api/health | Public, returns {"status":"ok"} |
-| GET | /api/capsules | JWT, own records |
-| POST | /api/capsules | JWT, create own record |
-| PUT | /api/capsules/:id | JWT, update own record |
-| DELETE | /api/capsules/:id | JWT, delete own record |
-| GET | /auth/github | Begin OAuth |
+| GET | / | Public |
+| GET | /login | Public |
+| GET | /dashboard | Protected |
+| GET | /api/health | Public |
+| GET | /api/capsules | Protected |
+| POST | /api/capsules | Protected |
+| PUT | /api/capsules/:id | Protected |
+| DELETE | /api/capsules/:id | Protected |
+| GET | /auth/github | OAuth login |
 | GET | /auth/github/callback | OAuth callback |
-| GET | /api/me | JWT, current login |
-| POST | /auth/logout | Clear cookie |
+| GET | /api/me | Protected |
+| POST | /auth/logout | Logout |
 
-React uses same-origin fetch to call Express; the browser sends the session cookie automatically. Express serves the built React files. SQLite is initialized automatically on startup via node:sqlite. Prepared statements bind all data. Every CRUD query scopes ownership to the verified JWT subject; browser-supplied user_id is ignored. SQLite is simple and sufficient for this small project; unlike a managed PostgreSQL database it is local to the running instance. On a Render free service the filesystem is ephemeral, so records may disappear on restart/redeploy. This is a limitation, not persistent cloud storage.
+React communicates with the Express backend through same-origin HTTP requests. Express serves both the frontend and backend API.
 
-## Required deployed security checks
-Replace the URL and run these commands in Terminal before logging in:
-```sh
-curl -i https://YOUR-APP/api/capsules
-curl -i -H 'Cookie: token=fake-token-123' https://YOUR-APP/api/capsules
-curl -i https://YOUR-APP/api/health
+## Database and Storage
+
+SQLite is automatically initialised when the server starts. Each capsule contains prompt information, project details, version, category, usefulness, review status, improvement status, screenshot evidence URL, notes and creation timestamp.
+
+Each record is associated with the authenticated GitHub user identifier. Database queries are designed to restrict access to records belonging to the authenticated user.
+
+SQLite was selected because it is lightweight and does not require a separate database server. PostgreSQL would provide a more suitable option for persistent storage and larger applications but would introduce additional configuration.
+
+## Local Testing Results
+
+The application was tested locally on 25 November 2026 using Node.js v24.14.1.
+
+| Test | Result |
+|---|---|
+| React frontend | Pass |
+| Express backend | Pass |
+| Health endpoint | Pass |
+| GitHub OAuth login | Pass |
+| Authenticated dashboard | Pass |
+| Create capsule | Pass |
+| Read capsule | Pass |
+| Update capsule | Pass |
+| Delete capsule | Pass |
+| Missing JWT rejection | Pass |
+| Invalid JWT rejection | Pass |
+| Cross-account ownership testing | Not yet completed |
+
+### Health Check
+
+Endpoint:
+
 ```
-Expected: first two return HTTP 401; health returns HTTP 200 with {"status":"ok"}. Actual results: **[paste your real results here after deployment]**. Never include a real token.
+http://localhost:3000/api/health
+```
 
-## Verification checklist
-- [ ] Public URL and health endpoint work.
-- [ ] Both unauthenticated and fake JWT tests return 401.
-- [ ] GitHub login succeeds and dashboard loads.
-- [ ] Create, reload/read, edit, and delete a capsule.
-- [ ] Log in as another GitHub user in a separate browser profile and verify the first user's records are not visible. Verify attempts to update/delete another user's record fail (404); use browser developer tools with that user's own session, not a shared token.
-- [ ] Logout and confirm dashboard requires login again.
+Observed response:
 
-## AI collaboration statement (complete honestly before submission)
-ChatGPT assisted with the initial code, UI, database design, OAuth/JWT integration and documentation. Personally completed: **[describe your actual setup, changes and deployment]**. Problem found and corrected in AI-generated code or configuration: **[describe an actual problem and fix]**. OAuth/JWT and CRUD/ownership verification: **[record actual tests and results]**. Implementation/deployment decision: **[explain a decision you personally made and understand]**. Limitation: SQLite data on Render free hosting may be lost after a restart or redeploy. Do not claim checks you did not perform.
+```
+{"status":"ok"}
+```
 
-## Submission
-Complete this README with real evidence. Submit source ZIP without node_modules, dist, secrets or private database files; submit a separate 3–5 minute MP4 with audio and the LMS AI acknowledgement form. In the video show public URL, health, both 401 curl checks, GitHub OAuth, complete CRUD, cloud settings and environment names (not values), and storage limitation/issue.
+### Security Test 1 — Missing Authentication
+
+Command:
+
+```
+curl -i http://localhost:3000/api/capsules
+```
+
+Observed response:
+
+```
+HTTP/1.1 401 Unauthorized
+{"error":"Unauthorized"}
+```
+
+Result: PASS. The backend rejected a request without authentication.
+
+### Security Test 2 — Invalid JWT
+
+Command:
+
+```
+curl -i -H "Cookie: token=fake-token-123" http://localhost:3000/api/capsules
+```
+
+Observed response:
+
+```
+HTTP/1.1 401 Unauthorized
+{"error":"Unauthorized"}
+```
+
+Result: PASS. The backend rejected an invalid JWT.
+
+These results demonstrate local API protection. The required public deployment tests have not yet been completed.
+
+## Cloud Deployment
+
+GitHub repository:
+
+https://github.com/Lemuel2110/AI-Capsule
+
+The source code was successfully uploaded to GitHub. A Render Web Service was configured using the following settings:
+
+- Runtime: Node.js
+- Branch: main
+- Build command: npm ci && npm run build
+- Start command: npm start
+- Instance type: Free
+
+The deployment could not be completed because Render requested payment card verification, despite selecting the free hosting plan.
+
+Public deployment URL: Not yet available.
+
+The required cloud health check, OAuth login, CRUD demonstration and security tests remain pending.
+
+## Troubleshooting
+
+### Port Already in Use
+
+During development, the server returned an EADDRINUSE error because a previous Node.js process was still using port 3000.
+
+The issue was resolved by identifying and stopping the existing process before restarting the application.
+
+### Local OAuth Login
+
+During local testing, the application returned to the landing page after authentication in Safari.
+
+Switching to Google Chrome allowed the OAuth login process to complete successfully and the protected dashboard to load. The precise cause of the Safari behaviour was not independently confirmed.
+
+## Application Limitations
+
+The current application uses SQLite. When deployed on a hosting service with an ephemeral filesystem, database records may be lost after a restart or redeployment.
+
+Cloud deployment is also currently incomplete due to the hosting provider's payment verification requirement.
+
+## AI Collaboration Statement
+
+ChatGPT was used to assist with initial source code generation, React UI development, Express API implementation, SQLite integration, OAuth and JWT configuration, troubleshooting and documentation.
+
+I personally installed the project dependencies, configured the environment variables, registered the GitHub OAuth application, built and ran the application locally, tested authentication and CRUD functionality, performed the two local cURL security tests, uploaded the source code to GitHub and attempted cloud deployment.
+
+One issue encountered during testing was the OAuth login returning to the landing page in Safari. Following troubleshooting, I switched to Chrome and successfully accessed the authenticated dashboard.
+
+I also resolved a server startup issue caused by port 3000 already being occupied by another Node.js process.
+
+OAuth functionality was verified through successful GitHub login and dashboard access. CRUD functionality was tested by creating, reading, updating and deleting a prompt record. Requests without a JWT and with an invalid JWT both returned HTTP 401 Unauthorized. Cross-account ownership testing remains incomplete.
+
+The implementation uses a single Express application to serve the React frontend and backend API, simplifying deployment and avoiding unnecessary cross-origin configuration.
+
+All testing results reported in this README refer to the local environment unless otherwise stated.
